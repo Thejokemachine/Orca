@@ -4,6 +4,7 @@
 
 #include "StringUtilities.h"
 #include "Layout.h"
+#include "Logger.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
 
@@ -24,7 +25,17 @@ bool CLayoutObject::GetVisible()
 	return mVisible;
 }
 
-void CLayoutObject::SetId(const std::string& Id)
+const sf::Transform& CLayoutObject::GetLayoutTransform() const
+{
+	return mLayoutTransform;
+}
+
+sf::FloatRect orca::CLayoutObject::GetLocalBounds() const
+{
+	return mRect.getLocalBounds();
+}
+
+void CLayoutObject::SetId(std::string_view Id)
 {
 	mId = Id;
 }
@@ -57,6 +68,11 @@ float CLayoutObject::GetX()
 float CLayoutObject::GetY()
 {
 	return mPosY.value;
+}
+
+float orca::CLayoutObject::GetRotation()
+{
+	return mRotation.value;
 }
 
 sf::Vector2f orca::CLayoutObject::GetPivot()
@@ -93,6 +109,12 @@ void CLayoutObject::SetY(float y)
 	mPosY.value = y;
 }
 
+void orca::CLayoutObject::SetRotation(float r)
+{
+	mPropertyFlags |= static_cast<int32_t>(EPropertyFlags::ROTATION);
+	mRotation.value = r;
+}
+
 void orca::CLayoutObject::SetPivot(const sf::Vector2f& pivot)
 {
 	mPropertyFlags |= static_cast<int32_t>(EPropertyFlags::PIVOT);
@@ -108,7 +130,7 @@ void orca::CLayoutObject::SetColor(const sf::Color& color)
 
 bool CLayoutObject::ParseAttributes(const pugi::xml_node& node)
 {
-	auto getAttribute = [&node](const std::string& name, pugi::xml_attribute& attribute) -> bool {
+	auto getAttribute = [&node](std::string_view name, pugi::xml_attribute& attribute) -> bool {
 		attribute = node.attribute(name);
 		return !attribute.empty();
 	};
@@ -134,6 +156,10 @@ bool CLayoutObject::ParseAttributes(const pugi::xml_node& node)
 	{
 		mPosY.expression = attr.as_string();
 	}
+	if (getAttribute("rot", attr))
+	{
+		mRotation.expression = attr.as_string();
+	}
 	if (getAttribute("pivot", attr))
 	{
 		std::string raw = attr.as_string();
@@ -144,6 +170,14 @@ bool CLayoutObject::ParseAttributes(const pugi::xml_node& node)
 	if (getAttribute("color", attr))
 	{
 		mColor = sf::Color(std::stoul(attr.as_string(), 0, 16));
+	}
+	if (getAttribute("color_hovered", attr))
+	{
+		mColorHover = sf::Color(std::stoul(attr.as_string(), 0, 16));
+	}
+	if (getAttribute("touchable", attr))
+	{
+		mTouchable = attr.as_bool();
 	}
 
 	return true;
@@ -184,6 +218,7 @@ void CLayoutObject::OnLayout()
 	SetHeight(evaluateProperty(mHeight, parentHeightModifier));
 	SetX(evaluateProperty(mPosX, parentWidthModifier));
 	SetY(evaluateProperty(mPosY, parentHeightModifier));
+	SetRotation(evaluateProperty(mRotation, 0.f));
 
 	const float selfWidthModifier = GetWidth() / 100.f;
 	const float selfHeightModifier = GetHeight() / 100.f;
@@ -198,8 +233,9 @@ void CLayoutObject::OnLayout()
 	}
 }
 
-void CLayoutObject::Update()
+void CLayoutObject::Update(int32_t forceFlags)
 {
+	mPropertyFlags |= forceFlags;
 	if (mPropertyFlags != 0)
 	{
 		auto hasFlag = [flags=mPropertyFlags](int32_t flag) {
@@ -220,28 +256,93 @@ void CLayoutObject::Update()
 			position.y = mPosY.value;
 			mRect.setPosition(position);
 		}
+		if (hasFlag(static_cast<int32_t>(EPropertyFlags::ROTATION)))
+		{
+			mRect.setRotation(sf::degrees(mRotation.value));
+		}
 		if (hasFlag(static_cast<int32_t>(EPropertyFlags::COLOR)))
 		{
-			mRect.setFillColor(mColor);
+			mRect.setFillColor(mHovered ? mColorHover : mColor);
 		}
 		if (hasFlag(static_cast<int32_t>(EPropertyFlags::PIVOT)))
 		{
 			mRect.setOrigin(sf::Vector2f(mPivotX.value, mPivotY.value));
 		}
+	}
 
-		mPropertyFlags = 0;
+	mLayoutTransform = mRect.getTransform();
+	if (mParent)
+	{
+		mLayoutTransform = mParent->GetLayoutTransform() * mLayoutTransform;
 	}
 
 	for (auto& wkChild : mChildren)
 	{
 		if (auto child = wkChild.lock(); child && child->GetVisible())
 		{
-			child->Update();
+			child->Update(mPropertyFlags);
 		}
 	}
+
+	mPropertyFlags = 0;
+}
+
+void orca::CLayoutObject::OnHoverBegin()
+{
+	mHovered = true;
+	mPropertyFlags |= static_cast<int32_t>(EPropertyFlags::COLOR);
+}
+
+void orca::CLayoutObject::OnHoverEnd()
+{
+	mHovered = false;
+	mPropertyFlags |= static_cast<int32_t>(EPropertyFlags::COLOR);
+}
+
+std::optional<std::weak_ptr<ILayoutObject>> orca::CLayoutObject::HandleInput(const sf::Vector2i& mousePosition)
+{
+	mHovered = false;
+	mPropertyFlags |= static_cast<int32_t>(EPropertyFlags::COLOR);
+
+	for (auto wkObj : mChildren)
+	{
+		if (auto obj = wkObj.lock())
+		{
+			auto handled = obj->HandleInput(mousePosition);
+			if (handled.has_value())
+			{
+				return handled;
+			}
+		}
+	}
+
+	if (mTouchable)
+	{
+		sf::Vector2f positionObjSpace = GetLayoutTransform().getInverse().transformPoint(sf::Vector2f(mousePosition));
+		if (GetLocalBounds().contains(positionObjSpace))
+		{
+			DebugLogF("Input consumed: {}", GetId());
+			mHovered = true;
+			mPropertyFlags |= static_cast<int32_t>(EPropertyFlags::COLOR);
+			return weak_from_this();
+		}
+	}
+
+	return std::nullopt;
 }
 
 void CLayoutObject::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
-	target.draw(mRect, states);
+	if (mRect.getFillColor().a > 0)
+	{
+		target.draw(mRect, states);
+	}
+	states.transform *= mRect.getTransform();
+	for (const auto& layoutObj : mChildren)
+	{
+		if (auto ptr = layoutObj.lock(); ptr && ptr->GetVisible())
+		{
+			target.draw(*ptr, states);
+		}
+	}
 }

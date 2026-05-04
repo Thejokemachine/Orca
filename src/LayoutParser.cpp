@@ -19,11 +19,11 @@ std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromFile(const st
 	return ParseLayoutFromXml(doc);
 }
 
-std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromString(const std::string& buffer)
+std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromString(std::string_view buffer)
 {
 	pugi::xml_document doc;
 
-	auto result = doc.load_buffer(buffer.c_str(), buffer.size());
+	auto result = doc.load_buffer(buffer.data(), buffer.size());
 
 	if (result.status != pugi::xml_parse_status::status_ok)
 	{
@@ -55,7 +55,7 @@ std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromXml(const pug
 		return std::unexpected("Layout element does not contain an Id attribute!");
 	}
 	layoutId = attrId.as_string();
-	DebugLog(std::format("Found root object with id: {}", layoutId));
+	DebugLogF("Found root object with id: {}", layoutId);
 
 	CLayout* layout = new CLayout();
 	layout->SetId(layoutId);

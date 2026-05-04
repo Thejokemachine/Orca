@@ -15,7 +15,7 @@ namespace orca
 	{
 	public:
 		std::expected<CLayout*, std::string> ParseLayoutFromFile(const std::filesystem::path& filepath);
-		std::expected<CLayout*, std::string> ParseLayoutFromString(const std::string& buffer);
+		std::expected<CLayout*, std::string> ParseLayoutFromString(std::string_view buffer);
 		std::expected<CLayout*, std::string> ParseLayoutFromXml(const pugi::xml_document& doc);
 
 	private:

@@ -23,7 +23,7 @@ namespace orca
 			int posX, posY;
 		};
 
-		CWindow(const sf::VideoMode& videoMode, const std::string& title, uint32_t styleFlags = sf::Style::Default, sf::State state = sf::State::Windowed, const std::optional<sf::ContextSettings>& contextSettings = std::nullopt);
+		CWindow(const sf::VideoMode& videoMode, std::string_view title, uint32_t styleFlags = sf::Style::Default, sf::State state = sf::State::Windowed, const std::optional<sf::ContextSettings>& contextSettings = std::nullopt);
 		CWindow(const CWindow&) = delete;
 		CWindow(CWindow&&) = delete;
 
@@ -40,6 +40,7 @@ namespace orca
 		DECLARE_EVENT_HANDLER(sf::Event::Resized);
 		DECLARE_EVENT_HANDLER(sf::Event::KeyPressed);
 		DECLARE_EVENT_HANDLER(sf::Event::KeyReleased);
+		DECLARE_EVENT_HANDLER(sf::Event::MouseMoved);
 
 	private:
 		std::string GetConfigFilename();

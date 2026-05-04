@@ -12,7 +12,7 @@
 
 using namespace orca;
 
-CWindow::CWindow(const sf::VideoMode& videoMode, const std::string& title, uint32_t styleFlags, sf::State state, const std::optional<sf::ContextSettings>& contextSettings)
+CWindow::CWindow(const sf::VideoMode& videoMode, std::string_view title, uint32_t styleFlags, sf::State state, const std::optional<sf::ContextSettings>& contextSettings)
 {
 	mTitle = title;
 	mWindow = std::make_unique<sf::RenderWindow>(videoMode, title, styleFlags, state, contextSettings.value_or({}));
@@ -106,6 +106,14 @@ void CWindow::EventLoop()
 		mLifetime += dt;
 		if (!pause)
 		{
+			if (auto obj = mLayout->FindObject("Popup").lock())
+			{
+				auto hSize = ((sf::Vector2f)mWindow->getSize()) * 0.5f;
+				auto pos = hSize + sf::Vector2f(150.f * std::sinf(mLifetime), 150.f * std::cosf(mLifetime));
+				obj->SetX(pos.x);
+				obj->SetY(pos.y);
+			}
+
 			auto hSize = ((sf::Vector2f)mWindow->getSize()) * 0.5f;
 			circle.setPosition(hSize + sf::Vector2f(150.f * std::sinf(mLifetime), 150.f * std::cosf(mLifetime)));
 			mLayout->Update();
@@ -145,6 +153,11 @@ DEFINE_EVENT_HANDLER(sf::Event::KeyPressed event)
 
 DEFINE_EVENT_HANDLER(sf::Event::KeyReleased event)
 {
+}
+
+DEFINE_EVENT_HANDLER(sf::Event::MouseMoved event)
+{
+	mLayout->HandleInput(event.position);
 }
 
 void CWindow::Render()

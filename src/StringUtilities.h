@@ -2,7 +2,7 @@
 #define __ORCA_STRINGUTILITIES__
 
 #include <string>
-#include <algorithm>
+#include <vector>
 
 namespace orca
 {
@@ -10,7 +10,8 @@ namespace orca
 	{
 		const std::string emptyString;
 
-		void ReplaceAll(const std::string& source, const std::string& removeSequence, const std::string& replaceSequence, std::string& outBuffer);
+		void ReplaceAll(std::string_view source, std::string_view removeSequence, std::string_view replaceSequence, std::string& outBuffer);
+		void SplitString(std::string_view source, std::string_view delimiter, std::vector<std::string>& outResults);
 	}
 }
 

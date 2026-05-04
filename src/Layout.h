@@ -20,24 +20,19 @@ namespace orca
 		CLayout();
 
 		void AddObject(const std::shared_ptr<ILayoutObject> layoutObject);
+		std::weak_ptr<ILayoutObject> FindObject(const std::string& id);
 
 		/*
 		* ILayoutObject
 		*/
-		virtual void Update() override;
+		virtual void Update(int32_t forceFlags = 0) override;
 		virtual void SetParent(ILayoutObject* parent) override;
 		virtual bool ParseAttributes(const pugi::xml_node& attributes) override;
-
-		/*
-		* sf::Drawable
-		*/
-		virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 	private:
 
 		std::unordered_set<std::shared_ptr<ILayoutObject>> mObjects;
 		std::unordered_map<std::string, std::weak_ptr<ILayoutObject>> mNamedObjects;
-
 	};
 }
 

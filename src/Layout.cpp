@@ -20,13 +20,22 @@ void CLayout::AddObject(const std::shared_ptr<ILayoutObject> layoutObject)
 	if (const auto& id = layoutObject->GetId(); !id.empty())
 	{
 		mNamedObjects[id] = layoutObject;
-		DebugLog(std::format("Added named layout object: \"{}\"", id));
+		DebugLogF("Added named layout object: \"{}\"", id);
 	}
 }
 
-void CLayout::Update()
+std::weak_ptr<ILayoutObject> CLayout::FindObject(const std::string& id)
 {
-	CLayoutObject::Update();
+	if (auto it = mNamedObjects.find(id); it != mNamedObjects.end())
+	{
+		return it->second;
+	}
+	return std::weak_ptr<ILayoutObject>();
+}
+
+void CLayout::Update(int32_t forceFlags)
+{
+	CLayoutObject::Update(forceFlags);
 }
 
 void CLayout::SetParent(ILayoutObject* parent)
@@ -36,17 +45,6 @@ void CLayout::SetParent(ILayoutObject* parent)
 
 bool CLayout::ParseAttributes(const pugi::xml_node& attributes)
 {
-	// Read any layout attributes
-	return true;
-}
-
-void CLayout::draw(sf::RenderTarget& target, sf::RenderStates states) const
-{
-	for (const auto& layoutObj : mChildren)
-	{
-		if (auto ptr = layoutObj.lock(); ptr && ptr->GetVisible())
-		{
-			target.draw(*ptr, states);
-		}
-	}
+	mColor.a = 0; // Layout background should be invisible by default
+	return CLayoutObject::ParseAttributes(attributes);
 }

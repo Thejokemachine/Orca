@@ -4,7 +4,7 @@
 
 using namespace orca;
 
-void utils::ReplaceAll(const std::string& source, const std::string& removeSequence, const std::string& replaceSequence, std::string& outBuffer)
+void utils::ReplaceAll(std::string_view source, std::string_view removeSequence, std::string_view replaceSequence, std::string& outBuffer)
 {
 	const size_t stride = removeSequence.length();
 	std::vector<size_t> foundInstances;
@@ -34,4 +34,20 @@ void utils::ReplaceAll(const std::string& source, const std::string& removeSeque
 	{
 		outBuffer = source;
 	}
+}
+
+void utils::SplitString(std::string_view source, std::string_view delimiter, std::vector<std::string>& outResults)
+{
+	size_t prevPos = 0;
+	size_t pos = source.find(delimiter);
+	while (pos != std::string::npos)
+	{
+		size_t length = pos - prevPos;
+		std::string s(source.substr(prevPos, length));
+		outResults.emplace_back(s);
+		prevPos = pos+1;
+		pos = source.find(delimiter, pos + delimiter.length());
+	}
+
+	outResults.emplace_back(source.substr(prevPos));
 }

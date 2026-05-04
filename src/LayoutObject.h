@@ -11,7 +11,7 @@
 
 namespace orca
 {
-	class CLayoutObject : public ILayoutObject
+	class CLayoutObject : public ILayoutObject, public std::enable_shared_from_this<CLayoutObject>
 	{
 	public:
 
@@ -20,8 +20,10 @@ namespace orca
 		virtual const std::string& GetId() override;
 		virtual ILayoutObject* GetParent() override;
 		virtual bool GetVisible() override;
+		virtual const sf::Transform& GetLayoutTransform() const override;
+		virtual sf::FloatRect GetLocalBounds() const override;
 
-		virtual void SetId(const std::string& Id) override;
+		virtual void SetId(std::string_view Id) override;
 		virtual void SetParent(ILayoutObject* parent) override;
 		virtual void SetVisible(bool visible) override;
 
@@ -29,6 +31,7 @@ namespace orca
 		virtual float GetHeight() override;
 		virtual float GetX() override;
 		virtual float GetY() override;
+		virtual float GetRotation() override;
 		virtual sf::Vector2f GetPivot() override;
 		virtual const sf::Color& GetColor() override;
 
@@ -36,14 +39,19 @@ namespace orca
 		virtual void SetHeight(float height) override;
 		virtual void SetX(float x) override;
 		virtual void SetY(float y) override;
+		virtual void SetRotation(float r) override;
 		virtual void SetPivot(const sf::Vector2f& pivot) override;
 		virtual void SetColor(const sf::Color& color) override;
 
 		virtual bool ParseAttributes(const pugi::xml_node& attributes) override;
 		virtual void AddChild(const std::shared_ptr<ILayoutObject>& layoutObject) override;
 		virtual void OnLayout() override;
-		virtual void Update() override;
+		virtual void Update(int32_t forceFlags = 0) override;
 
+		virtual void OnHoverBegin() override;
+		virtual void OnHoverEnd() override;
+
+		virtual std::optional<std::weak_ptr<ILayoutObject>> HandleInput(const sf::Vector2i& mousePosition) override;
 		/*
 		* sf::Drawable
 		*/
@@ -57,8 +65,9 @@ namespace orca
 			HEIGHT = 1 << 1,
 			POS_X = 1 << 2,
 			POS_Y = 1 << 3,
-			COLOR = 1 << 4,
-			PIVOT = 1 << 5,
+			ROTATION = 1 << 4,
+			COLOR = 1 << 5,
+			PIVOT = 1 << 6,
 			NONE = 0,
 			ALL = std::numeric_limits<int32_t>::max(),
 		};
@@ -81,11 +90,17 @@ namespace orca
 		SValueProperty mHeight;
 		SValueProperty mPosX;
 		SValueProperty mPosY;
+		SValueProperty mRotation;
 		SValueProperty mPivotX;
 		SValueProperty mPivotY;
 
 		sf::Color mColor{ sf::Color::White };
+		
+		bool mTouchable{ false };
+		bool mHovered{ false };
+		sf::Color mColorHover;
 
+		sf::Transform mLayoutTransform;
 		sf::RectangleShape mRect;
 	};
 }

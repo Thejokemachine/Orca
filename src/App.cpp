@@ -1,6 +1,7 @@
 #include "App.h"
 
 #include "Logger.h"
+#include "FileWatcher.h"
 
 using namespace orca;
 
@@ -46,4 +47,5 @@ void CApp::ReadLocalConfig()
 void CApp::RegisterServices()
 {
 	RegisterService(std::make_shared<CLogger>());
+	RegisterService(std::make_shared<CFileWatcher>());
 }

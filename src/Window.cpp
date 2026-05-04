@@ -2,8 +2,10 @@
 #include <iostream>
 #include <format>
 #include <string>
-#include "Logger.h"
 #include "StringUtilities.h"
+
+#include "Logger.h"
+#include "FileWatcher.h"
 
 #include "Layout.h"
 #include "LayoutParser.h"
@@ -21,15 +23,23 @@ CWindow::CWindow(const sf::VideoMode& videoMode, std::string_view title, uint32_
 	circle.setFillColor(sf::Color::White);
 	circle.setRadius(25.0f);
 
+	std::filesystem::path path = "layout.layout";
+	auto createLayout = [this, path]() {
+		CLayoutParser parser;
+		if (auto result = parser.ParseLayoutFromFile(path); result.has_value())
+		{
+			mLayout = std::unique_ptr<CLayout>(result.value());
+			mLayout->SetWidth(mWindow->getSize().x);
+			mLayout->SetHeight(mWindow->getSize().y);
+			mLayout->OnLayout();
+		}
+	};
 
-	CLayoutParser parser;
-	if (auto result = parser.ParseLayoutFromFile("layout.layout"); result.has_value())
+	if (auto fileWatcher = CApp::Instance().GetService<CFileWatcher>().lock())
 	{
-		mLayout = std::unique_ptr<CLayout>(result.value());
-		mLayout->SetWidth(mWindow->getSize().x);
-		mLayout->SetHeight(mWindow->getSize().y);
-		mLayout->OnLayout();
+		fileWatcher->Observe(path, createLayout);
 	}
+	createLayout();
 }
 
 std::optional<sf::RenderWindow*> CWindow::GetRenderWindow()
@@ -106,17 +116,23 @@ void CWindow::EventLoop()
 		mLifetime += dt;
 		if (!pause)
 		{
-			if (auto obj = mLayout->FindObject("Popup").lock())
+			if (mLayout)
 			{
-				auto hSize = ((sf::Vector2f)mWindow->getSize()) * 0.5f;
-				auto pos = hSize + sf::Vector2f(150.f * std::sinf(mLifetime), 150.f * std::cosf(mLifetime));
-				obj->SetX(pos.x);
-				obj->SetY(pos.y);
+				if (auto obj = mLayout->FindObject("Popup").lock())
+				{
+					auto hSize = ((sf::Vector2f)mWindow->getSize()) * 0.5f;
+					auto pos = hSize + sf::Vector2f(150.f * std::sinf(mLifetime), 150.f * std::cosf(mLifetime));
+					obj->SetX(pos.x);
+					obj->SetY(pos.y);
+				}
 			}
 
 			auto hSize = ((sf::Vector2f)mWindow->getSize()) * 0.5f;
 			circle.setPosition(hSize + sf::Vector2f(150.f * std::sinf(mLifetime), 150.f * std::cosf(mLifetime)));
-			mLayout->Update();
+			if (mLayout)
+			{
+				mLayout->Update();
+			}
 			Render();
 		}
 	}
@@ -137,9 +153,12 @@ DEFINE_EVENT_HANDLER(sf::Event::Resized event)
 	view.setCenter(0.5f * view.getSize());
 	mWindow->setView(view);
 
-	mLayout->SetWidth(size.x);
-	mLayout->SetHeight(size.y);
-	mLayout->OnLayout();
+	if (mLayout)
+	{
+		mLayout->SetWidth(size.x);
+		mLayout->SetHeight(size.y);
+		mLayout->OnLayout();
+	}
 	std::puts(std::format("RESIZED: W:{} H:{}", size.x, size.y).c_str());
 }
 
@@ -157,7 +176,10 @@ DEFINE_EVENT_HANDLER(sf::Event::KeyReleased event)
 
 DEFINE_EVENT_HANDLER(sf::Event::MouseMoved event)
 {
-	mLayout->HandleInput(event.position);
+	if (mLayout)
+	{
+		mLayout->HandleInput(event.position);
+	}
 }
 
 void CWindow::Render()

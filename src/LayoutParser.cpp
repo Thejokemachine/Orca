@@ -2,6 +2,8 @@
 
 #include "Logger.h"
 #include "Layout.h"
+#include "ILayoutObject.h"
+#include "StringUtilities.h"
 
 using namespace orca;
 
@@ -35,6 +37,28 @@ std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromString(std::s
 
 std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromXml(const pugi::xml_document& doc)
 {
+	// Read prefabs
+	std::string prefabId;
+	const auto& docPrefabs = doc.children("prefab");
+	for (auto& docPrefab : docPrefabs)
+	{
+		auto attrId = docPrefab.attribute("id");
+		if (attrId.empty())
+		{
+			return std::unexpected("Prefab element does not contain an Id attribute!");
+		}
+		prefabId = attrId.as_string();
+		DebugLogF("Found prefab object with id: {}", prefabId);
+
+		auto prefab = new SPrefab();
+		prefab->node = docPrefab;
+		prefab->factoryFunc = []() {
+			return std::make_shared<CLayoutObject>();
+		};
+		mPrefabs[prefabId].reset(prefab);
+	}
+
+	// Read layout
 	const auto& docLayouts = doc.children("layout");
 	auto count = std::count_if(docLayouts.begin(), docLayouts.end(), [](const auto&) { return true; });
 	if (count == 0)
@@ -80,12 +104,35 @@ void CLayoutParser::AddChildren(ILayoutObject& layoutObject, const pugi::xml_nod
 {
 	for (const auto& childNode : node)
 	{
-		auto child = std::make_shared<CLayoutObject>();
-		layoutObject.AddChild(child);
-		if (child->ParseAttributes(childNode))
+		std::shared_ptr<ILayoutObject> child = nullptr;
+		auto type = childNode.name();
+		if (!strcmp(type, "panel"))
 		{
-			AddChildren(*child, childNode, createdObjects);
+			child = std::make_shared<CLayoutObject>();
 		}
-		createdObjects.emplace_back(child);
+		else if (auto it = mPrefabs.find(type); it != mPrefabs.end())
+		{
+			const SPrefab& prefab = *it->second;
+			child = prefab.factoryFunc();
+			if (child->ParseAttributes(prefab.node))
+			{
+				AddChildren(*child, prefab.node, createdObjects);
+			}
+			child->SetId(utils::emptyString);
+		}
+		else
+		{
+			DebugLogF("\"{}\" is not a registered layout type!", type);
+		}
+
+		if (child)
+		{
+			if (child->ParseAttributes(childNode))
+			{
+				AddChildren(*child, childNode, createdObjects);
+			}
+			createdObjects.emplace_back(child);
+			layoutObject.AddChild(child);
+		}
 	}
 }

@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <iostream>
+#include <mutex>
 
 #ifdef _DEBUG
 #define DebugLog(l) { static std::weak_ptr<orca::CLogger> _logger; if (_logger.expired()) _logger = orca::CApp::Instance().GetService<orca::CLogger>(); _logger.lock()->Log(l); }
@@ -27,8 +28,12 @@ namespace orca
 
 		template <typename... Args>
 		void Log(std::string_view fmt, Args&&... args) {
+			std::lock_guard lock(mMutex); // std::cout is thread safe, but we might add other logging capabilites here later
 			std::cout << std::vformat(fmt, std::make_format_args(args...)) << '\n';
 		}
+
+	private:
+		std::mutex mMutex;
 	};
 }
 

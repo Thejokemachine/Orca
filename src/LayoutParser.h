@@ -4,7 +4,9 @@
 #include <filesystem>
 #include <string>
 #include <expected>
+#include <memory>
 #include <pugixml.hpp>
+#include <functional>
 
 namespace orca
 {
@@ -20,6 +22,13 @@ namespace orca
 
 	private:
 		void AddChildren(ILayoutObject& layoutObject, const pugi::xml_node& node, std::vector<std::shared_ptr<ILayoutObject>>& createdObjects);
+
+		struct SPrefab
+		{
+			pugi::xml_node node;
+			std::function<std::shared_ptr<ILayoutObject>()> factoryFunc;
+		};
+		std::unordered_map<std::string, std::unique_ptr<SPrefab>> mPrefabs;
 	};
 }
 

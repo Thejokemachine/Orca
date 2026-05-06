@@ -5,6 +5,8 @@
 #include "ILayoutObject.h"
 #include "StringUtilities.h"
 
+#include "LayoutSequence.h"
+
 using namespace orca;
 
 std::expected<CLayout*, std::string> CLayoutParser::ParseLayoutFromFile(const std::filesystem::path& filepath)
@@ -109,6 +111,10 @@ void CLayoutParser::AddChildren(ILayoutObject& layoutObject, const pugi::xml_nod
 		if (!strcmp(type, "panel"))
 		{
 			child = std::make_shared<CLayoutObject>();
+		}
+		else if (!strcmp(type, "sequence"))
+		{
+			child = std::make_shared<CLayoutSequence>();
 		}
 		else if (auto it = mPrefabs.find(type); it != mPrefabs.end())
 		{

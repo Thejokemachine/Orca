@@ -32,7 +32,7 @@ const sf::Transform& CLayoutObject::GetLayoutTransform() const
 
 sf::FloatRect orca::CLayoutObject::GetLocalBounds() const
 {
-	return mRect.getLocalBounds();
+	return mRect;
 }
 
 void CLayoutObject::SetId(std::string_view Id)
@@ -130,52 +130,47 @@ void orca::CLayoutObject::SetColor(const sf::Color& color)
 
 bool CLayoutObject::ParseAttributes(const pugi::xml_node& node)
 {
-	auto getAttribute = [&node](std::string_view name, pugi::xml_attribute& attribute) -> bool {
-		attribute = node.attribute(name);
-		return !attribute.empty();
-	};
-
 	pugi::xml_attribute attr;
-	if (getAttribute("id", attr))
+	if (GetAttribute(node, "id", attr))
 	{
 		SetId(attr.as_string());
 	}
-	if (getAttribute("width", attr))
+	if (GetAttribute(node, "width", attr))
 	{
 		mWidth.expression = attr.as_string();
 	}
-	if (getAttribute("height", attr))
+	if (GetAttribute(node, "height", attr))
 	{
 		mHeight.expression = attr.as_string();
 	}
-	if (getAttribute("x", attr))
+	if (GetAttribute(node, "x", attr))
 	{
 		mPosX.expression = attr.as_string();
 	}
-	if (getAttribute("y", attr))
+	if (GetAttribute(node, "y", attr))
 	{
 		mPosY.expression = attr.as_string();
 	}
-	if (getAttribute("rot", attr))
+	if (GetAttribute(node, "rot", attr))
 	{
 		mRotation.expression = attr.as_string();
 	}
-	if (getAttribute("pivot", attr))
+	if (GetAttribute(node, "pivot", attr))
 	{
 		std::string raw = attr.as_string();
 		auto split = raw.find(',');
 		mPivotX.expression = raw.substr(0, split);
 		mPivotY.expression = raw.substr(split+1);
 	}
-	if (getAttribute("color", attr))
+	if (GetAttribute(node, "color", attr))
 	{
 		mColor = sf::Color(std::stoul(attr.as_string(), 0, 16));
 	}
-	if (getAttribute("color_hovered", attr))
+	if (GetAttribute(node, "color_hovered", attr))
 	{
 		mColorHover = sf::Color(std::stoul(attr.as_string(), 0, 16));
 	}
-	if (getAttribute("touchable", attr))
+	if (GetAttribute(node, "touchable", attr))
 	{
 		mTouchable = attr.as_bool();
 	}
@@ -242,35 +237,62 @@ void CLayoutObject::Update(int32_t forceFlags)
 			return flags & static_cast<int32_t>(flag);
 		};
 
-		if (hasFlag(static_cast<int32_t>(EPropertyFlags::WIDTH) | static_cast<int32_t>(EPropertyFlags::HEIGHT)))
-		{
-			sf::Vector2f size;
-			size.x = mWidth.value;
-			size.y = mHeight.value;
-			mRect.setSize(size);
-		}
+		bool updateBuffer = false;
+
 		if (hasFlag(static_cast<int32_t>(EPropertyFlags::POS_X) | static_cast<int32_t>(EPropertyFlags::POS_Y)))
 		{
 			sf::Vector2f position;
 			position.x = mPosX.value;
 			position.y = mPosY.value;
-			mRect.setPosition(position);
+			mDrawableTransform.setPosition(position);
 		}
 		if (hasFlag(static_cast<int32_t>(EPropertyFlags::ROTATION)))
 		{
-			mRect.setRotation(sf::degrees(mRotation.value));
-		}
-		if (hasFlag(static_cast<int32_t>(EPropertyFlags::COLOR)))
-		{
-			mRect.setFillColor(mHovered ? mColorHover : mColor);
+			mDrawableTransform.setRotation(sf::degrees(mRotation.value));
 		}
 		if (hasFlag(static_cast<int32_t>(EPropertyFlags::PIVOT)))
 		{
-			mRect.setOrigin(sf::Vector2f(mPivotX.value, mPivotY.value));
+			mDrawableTransform.setOrigin(sf::Vector2f(mPivotX.value, mPivotY.value));
+		}
+		if (hasFlag(static_cast<int32_t>(EPropertyFlags::COLOR)))
+		{
+			mDrawableColor = mHovered ? mColorHover : mColor;
+			if (auto drawable = GetDrawable())
+			{
+				for (int i = 0; i < mVertexData->vertices.size(); ++i)
+				{
+					mVertexData->vertices[i].color = mDrawableColor;
+				}
+				updateBuffer = true;;
+			}
+		}
+		if (hasFlag(static_cast<int32_t>(EPropertyFlags::WIDTH) | static_cast<int32_t>(EPropertyFlags::HEIGHT)))
+		{
+			sf::Vector2f size;
+			size.x = mWidth.value;
+			size.y = mHeight.value;
+			mRect.size = size;
+			if (auto drawable = GetDrawable())
+			{
+				auto& vertices = mVertexData->vertices;
+				vertices[0].position = { 0,				 0 };
+				vertices[1].position = { size.x,		 0 };
+				vertices[2].position = { size.x, size.y };
+				vertices[3].position = { 0,		 size.y };
+				updateBuffer = true;
+			}
+		}
+
+		if (updateBuffer)
+		{
+			if (auto drawable = GetDrawable())
+			{
+				mVertexData->buffer.update(mVertexData->vertices.data());
+			}
 		}
 	}
 
-	mLayoutTransform = mRect.getTransform();
+	mLayoutTransform = mDrawableTransform.getTransform();
 	if (mParent)
 	{
 		mLayoutTransform = mParent->GetLayoutTransform() * mLayoutTransform;
@@ -333,11 +355,12 @@ std::optional<std::weak_ptr<ILayoutObject>> orca::CLayoutObject::HandleInput(con
 
 void CLayoutObject::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
-	if (mRect.getFillColor().a > 0)
+	states.transform *= mDrawableTransform.getTransform();
+	states.coordinateType = sf::CoordinateType::Pixels;
+	if (mVertexData)
 	{
-		target.draw(mRect, states);
+		target.draw(mVertexData->buffer, states);
 	}
-	states.transform *= mRect.getTransform();
 	for (const auto& layoutObj : mChildren)
 	{
 		if (auto ptr = layoutObj.lock(); ptr && ptr->GetVisible())
@@ -345,4 +368,26 @@ void CLayoutObject::draw(sf::RenderTarget& target, sf::RenderStates states) cons
 			target.draw(*ptr, states);
 		}
 	}
+}
+
+CLayoutObject::SVertexData* orca::CLayoutObject::GetDrawable()
+{
+	if (mVisible && mDrawableColor.a > 0 && !mVertexData)
+	{
+		mVertexData = std::make_unique<SVertexData>();
+		auto& vertices = mVertexData->vertices;
+		vertices.resize(4);
+		auto& buffer = mVertexData->buffer;
+		buffer.setPrimitiveType(sf::PrimitiveType::TriangleFan);
+		buffer.setUsage(sf::VertexBuffer::Usage::Dynamic);
+		buffer.create(vertices.size());
+	}
+
+	return mVertexData.get();
+}
+
+bool orca::CLayoutObject::GetAttribute(const pugi::xml_node& node, std::string_view name, pugi::xml_attribute& attribute)
+{
+	attribute = node.attribute(name);
+	return !attribute.empty();
 }

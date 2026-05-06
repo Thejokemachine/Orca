@@ -3,7 +3,9 @@
 
 #include "ILayoutObject.h"
 
-#include <SFML/Graphics/RectangleShape.hpp>
+#include <SFML/Graphics/VertexBuffer.hpp>
+#include <SFML/Graphics/Transformable.hpp>
+#include <SFML/Graphics/Vertex.hpp>
 
 #include <optional>
 #include <memory>
@@ -72,6 +74,21 @@ namespace orca
 			ALL = std::numeric_limits<int32_t>::max(),
 		};
 
+		struct SValueProperty
+		{
+			float value{ 0.f };
+			std::string expression;
+		};
+
+		struct SVertexData
+		{
+			std::vector<sf::Vertex> vertices;
+			sf::VertexBuffer buffer;
+		};
+
+		SVertexData* GetDrawable();
+		static bool GetAttribute(const pugi::xml_node& node, std::string_view name, pugi::xml_attribute& attribute);
+
 		std::string mId;
 		ILayoutObject* mParent{ nullptr };
 		bool mVisible{ true };
@@ -79,12 +96,6 @@ namespace orca
 		std::vector<std::weak_ptr<ILayoutObject>> mChildren;
 
 		int mPropertyFlags{ static_cast<int>(EPropertyFlags::ALL) };
-
-		struct SValueProperty
-		{
-			float value{ 0.f };
-			std::string expression;
-		};
 
 		SValueProperty mWidth;
 		SValueProperty mHeight;
@@ -94,14 +105,18 @@ namespace orca
 		SValueProperty mPivotX;
 		SValueProperty mPivotY;
 
-		sf::Color mColor{ sf::Color::White };
+		sf::Color mColor{ sf::Color::Transparent };
 		
 		bool mTouchable{ false };
 		bool mHovered{ false };
 		sf::Color mColorHover;
 
 		sf::Transform mLayoutTransform;
-		sf::RectangleShape mRect;
+		sf::Transformable mDrawableTransform;
+		sf::FloatRect mRect;
+		sf::Color mDrawableColor;
+
+		std::unique_ptr<SVertexData> mVertexData;
 	};
 }
 

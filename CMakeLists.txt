@@ -44,7 +44,9 @@ main src/main.cpp
     "src/LayoutParser.cpp"
     "src/LayoutObject.cpp"
     "src/Panel.cpp"
-    "src/FileWatcher.cpp")
+    "src/LayoutSequence.cpp"
+    "src/FileWatcher.cpp"
+)
 
 target_compile_features(main PRIVATE cxx_std_23)
 target_link_libraries(main PRIVATE SFML::Graphics)
